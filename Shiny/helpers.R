@@ -2,46 +2,36 @@ library(tidyverse)
 library(rgdal)
 library(geosphere)
 library(rgeos)
+library(sf)
+library(lwgeom)
 
 headers <- read.csv("~/Dropbox/CensusViz/acsHeaders.csv")
+options(warn=-1)
 
 district_proportions <- function(districts, tracts, id.districts) {
-
     if (is.na(proj4string(districts))) {
         stop("Distirct shapefile does not have a valid projection")
     }
     if (is.na(proj4string(tracts))) {
         stop("Tract shapefile does not have a valid projection")
     }
-
-    tracts <- spTransform(tracts, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
-    districts <- spTransform(districts, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
-
-    totalArea <- sum(areaPolygon(districts))
-    propMatrix <- matrix(0,nrow=nrow(districts@data),ncol=nrow(tracts@data))
+    districts <- st_make_valid(st_as_sf(districts))
+    tracts <- st_make_valid(st_as_sf(tracts))
+    tracts <- st_transform(tracts, "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96")
+    districts <- st_transform(districts, "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96")
+    totalArea <- sum(st_area(districts))
+    propMatrix <- matrix(0,nrow=nrow(districts),ncol=nrow(tracts))
     areaCovered <- 0
-    for(i in 1:nrow(tracts@data)){
-        myDenominator <- areaPolygon(tracts[i,])
-        print(paste0(round(i/nrow(tracts@data)*100,1),"% Done"))
-        for(j in 1:nrow(districts@data)) {
-            thisIntersection <- gIntersection(tracts[i,],districts[j,])
-            noInt <- is.null(thisIntersection)
-            point <- class(thisIntersection)[1]=="SpatialPoints"
-            line <- class(thisIntersection)[1]=="SpatialLines"
-            collection <- class(thisIntersection)[1]=="SpatialCollections"
-            if(noInt || point || line) {
+    for(i in 1:nrow(tracts)){
+        myDenominator <- st_area(tracts[i,])
+        print(paste0(round(i/nrow(tracts)*100,1),"% Done"))
+        for(j in 1:nrow(districts)) {
+            thisIntersection <- st_intersection(tracts[i,],districts[j,])
+            if(nrow(thisIntersection)==0) {
                 myNumerator <- 0
                 propMatrix[j,i] <- 0
-            } else if(collection) {
-                if (!is.null(thisIntersection@polyobj)) {
-                    myNumerator <- sum(areaPolygon(thisIntersection@polyobj))
-                    areaCovered <- areaCovered+myNumerator
-                } else {
-                    myNumerator <- 0
-                }
-                propMatrix[j,i] <- myNumerator/myDenominator
             } else {
-                myNumerator <- areaPolygon(thisIntersection)
+                myNumerator <- as.numeric(st_area(thisIntersection))
                 areaCovered <- areaCovered+myNumerator
                 propMatrix[j,i] <- myNumerator/myDenominator
             }
@@ -75,7 +65,7 @@ district_populations <- function(districtProp, city) {
 
     cityCensus[,-1] <- sapply(cityCensus[,-1],as.numeric)
     cityCensus <- cityCensus[match(colnames(districtProp),cityCensus$GEO.id2),]
-
+    cityCensus[is.na(cityCensus)] <- 0
     cityDistrictPop <- as.data.frame(districtProp %*% as.matrix(cityCensus[,-1]))
     colnames(cityDistrictPop) <- headers$New.Column
     return(cityDistrictPop)

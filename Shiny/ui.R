@@ -1,7 +1,7 @@
 library(leaflet)
 library(tidyverse)
 
-cities <- c("New York","Boston","Seattle","Dallas")
+cities <- c("New Orleans","Little Rock","Las Vegas","Los Angeles","Philadelphia","Milwaukee","Detroit","Jackson","Birmingham","San Francisco","New York","Boston","Seattle","Dallas","Washington D.C.")
 headers <- read.csv("~/Dropbox/CensusViz/acsHeaders.csv",stringsAsFactors=F)
 vars <- headers %>% filter(Label!="") %>% select(Label)
 

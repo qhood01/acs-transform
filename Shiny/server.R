@@ -64,7 +64,9 @@ function(input, output) {
         map <- readOGR(paste0(input$city1,"/Shapefiles"),layer=layer)
         map$lng <- centroid(map)[,1]
         map$lat <- centroid(map)[,2]
-        ##map <- map[map@data$ALAND10 != "0",]
+        if (names(map) %in% "ALAND10") {
+            map <- map[map@data$ALAND10 != "0",]
+        }
         lng <- map$lng[1]
         lat <- map$lat[2]
         table <- as.character(headers[headers$Label==input$var,"Table"][1])
@@ -82,6 +84,7 @@ function(input, output) {
             names(mergedData) <- c("GEOID10","VAR")
         }
 
+        title <- ifelse(input$type=="Percent",paste0(input$var," %"),input$var)
         map@data <- left_join(map@data, mergedData)
         map@data$VAR <- as.numeric(map@data$VAR)
 
@@ -98,7 +101,8 @@ function(input, output) {
                         fillColor=~colorScale(VAR),
                         fillOpacity=0.5,
                         highlightOptions=highlightOptions(color = "white", weight = 3,
-                                                          bringToFront = TRUE))
+                                                          bringToFront = TRUE)) %>%
+            addLegend("bottomright", pal=colorScale, values=~VAR,title=title)
     })
 
 }
